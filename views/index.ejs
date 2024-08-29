@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Only Friends</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="background"></div>
+    <div id="content">
+        <div id="main-container">
+            <div id="character-container">
+                <div id="character"></div>
+            </div>
+            <div id="menu-container">
+                <div id="menu-box">
+                    <div id="main-menu" class="scene">
+                        <h1>Welcome back, Player!</h1>
+                        <button id="find" class="menu-button">Play</button>
+                        <button class="menu-button">Button 2</button>
+                        <button class="menu-button">Button 3</button>
+                        <button class="menu-button">Button 4</button>
+                        <div id="sub-buttons">
+                            <button class="sub-button">Sub 1</button>
+                            <button class="sub-button">Sub 2</button>
+                            <button class="sub-button">Sub 3</button>
+                            <button class="sub-button">Sub 4</button>
+                        </div>
+                    </div>
+
+                    <div id="find-match" class="scene">
+                        <h2>Find Match</h2>
+                        <div id="characters-text">Select Avatar</div>
+                        <div id="characters"></div>
+                        <button id="create" class="menu-button">Create New</button>
+                        <button id="back" class="menu-button">Back</button>
+                    </div>
+
+                    <div id="character-create" class="scene">
+                        <h2>Create Character</h2>
+                        <div id="customize">
+                            <div id="customize-options"></div>
+                            <div id="enter-name"> 
+                                Name: <input type="text" class="input-field" placeholder="John Smith" id="name-input">
+                            </div>
+                            <button id="done" class="menu-button" disabled>Done</button>
+                        </div>
+                        <button id="back" class="menu-button">Back</button>
+                    </div>
+
+                    <div id="match-making" class="scene">
+                        <h2>Find Match</h2>
+                        <button id="random-match" class="menu-button">Random Match</button>
+                        <button id="back" class="menu-button">Back</button>
+                    </div>
+                    
+                    <div id="searching" class="scene">
+                        <h2>Searching New Match</h2>
+                        <span id="searching-text">Searching</span>
+                        <span class="loader"></span>
+                        <button id="back" class="menu-button">Cancel</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="game" class="scene">
+            <div id="game-container">
+                <div id="canvas-wrapper">
+                    <canvas id="ab" width="700" height="700"></canvas>
+                </div>
+                <button id="back" class="menu-button">Exit Match</button>
+            </div>
+
+            <div id="chat-container">
+                <div id="chat-header">
+                    <span>Chat</span>
+                    <button id="chat-toggle">hide</button>
+                </div>
+                <div id="chat-content">
+                    <div id="chat-messages"></div>
+                    <form id="chat-form">
+                        <input autocomplete="off" type="text" id="chat-input" placeholder="Type a message..." maxlength="100">
+                        <button type="submit">Send</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+    </div>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <script src="https://unpkg.com/@popperjs/core@2/dist/umd/popper.min.js"></script>
+    <script src="https://unpkg.com/tippy.js@6/dist/tippy-bundle.umd.js"></script>
+    <script src="character.js"></script>
+    <script src="math.js"></script>
+    <script src="menu.js"></script>
+    <script src="game.js"></script>
+</body>
+</html>
