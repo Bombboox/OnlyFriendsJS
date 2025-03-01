@@ -40,7 +40,27 @@
                     <div id="character-create" class="scene">
                         <h2>Create Character</h2>
                         <div id="customize">
-                            <div id="customize-options"></div>
+                            <div id="customize-preview">
+                                <canvas id="character-preview" width="200" height="200"></canvas>
+                            </div>
+                            <div id="customize-options">
+                                <div class="color-picker">
+                                    <label>Head Color:</label>
+                                    <input type="color" id="head-color" value="#ff0000">
+                                </div>
+                                <div class="color-picker">
+                                    <label>Torso Color:</label>
+                                    <input type="color" id="torso-color" value="#00ff00">
+                                </div>
+                                <div class="color-picker">
+                                    <label>Legs Color:</label>
+                                    <input type="color" id="legs-color" value="#0000ff">
+                                </div>
+                                <div class="color-picker">
+                                    <label>Eyes Color:</label>
+                                    <input type="color" id="eyes-color" value="#000000">
+                                </div>
+                            </div>
                             <div id="enter-name"> 
                                 Name: <input type="text" class="input-field" placeholder="John Smith" id="name-input">
                             </div>

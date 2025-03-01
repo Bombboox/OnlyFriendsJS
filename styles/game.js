@@ -1,5 +1,3 @@
-
-
 // Rendering
 const canvas = document.getElementById("ab");
 const ctx = canvas.getContext("2d");
@@ -11,22 +9,16 @@ canvas.height = 900;
 const PLAYER_SPEED = 5;
 const GRAVITY = 0.5;
 const JUMP_STRENGTH = 8;
-const MAX_JUMP_HOLD = 15;
+const MAX_JUMP_HOLD = 16;
 const MAX_HEALTH = 100;
+const MESSAGE_DURATION = 4000; // 4 seconds in milliseconds
 
 // Game variables
 const keyboard = [];
 const players = {};
-let px = 50;
-let py = canvas.height;
-const pw = 25;
-const ph = 25;
-let vy = 0;
-let jumpHoldTime = 0;
-let moving = false;
 let animationFrame;
-let health = MAX_HEALTH;
-let direction = 1;
+let currentMessage = null;
+let messageTimeout = null;
 
 // Chat elements
 const chatContainer = document.getElementById('chat-container');
@@ -50,12 +42,21 @@ const obstacles = [
 ];
 
 function initialize() {
-    document.addEventListener('keydown', (e) => { keyboard[e.keyCode] = true });
+    document.addEventListener('keydown', (e) => { 
+        keyboard[e.keyCode] = true;
+        // Focus chat input when Enter is pressed
+        if (e.keyCode === 13 && !chatInput.matches(':focus')) {
+            e.preventDefault();
+            chatInput.focus();
+        }
+    });
     document.addEventListener('keyup', (e) => { keyboard[e.keyCode] = false });
     chatForm.addEventListener('submit', (e) => {
         e.preventDefault();
         if (chatInput.value.trim() !== '') {
-            socket.emit('chatMessage', { roomId, name: activeCharacter.name, message: chatInput.value.trim() });
+            const message = chatInput.value.trim();
+            socket.emit('chatMessage', { roomId, name: activeCharacter.name, message, x: activeCharacter.x, y: activeCharacter.y });
+            showFloatingMessage(message, activeCharacter.x, activeCharacter.y);
             chatInput.value = '';
         }
     });
@@ -79,90 +80,76 @@ function draw() {
     // Draw other players
     for (const playerId in players) {
         const player = players[playerId];
-        drawPlayer(player.x, player.y, player.health, 'blue');
+        if (player && player.character) {
+            player.character.x = player.x;
+            player.character.y = player.y;
+            drawPlayer(player.character);
+            if (player.message) {
+                drawFloatingMessage(player.message, player.x, player.y);
+            }
+        }
     }
 
     // Draw current player
-    drawPlayer(px, py, health, 'white');
-    movement();
+    activeCharacter.move(keyboard, obstacles);
+    drawPlayer(activeCharacter);
+    if (currentMessage) {
+        drawFloatingMessage(currentMessage, activeCharacter.x, activeCharacter.y);
+    }
 
-    if (moving) {
+    if (activeCharacter.moving) {
         emitMovement();
     }
 }
 
-function drawPlayer(x, y, playerHealth, color) {
-    // Draw player
-    ctx.fillStyle = color;
-    ctx.fillRect(x, y, pw, ph);
+function drawFloatingMessage(message, x, y) {
+    ctx.font = '14px Arial';
+    ctx.fillStyle = 'white';
+    ctx.textAlign = 'center';
+    ctx.fillText(message, x + 12, y - 10); // Position above character's head
+}
 
-    // Draw healthbar
-    const healthBarWidth = pw;
-    const healthBarHeight = 5;
-    const healthPercentage = playerHealth / MAX_HEALTH;
+function showFloatingMessage(message, x, y) {
+    currentMessage = message;
+    if (messageTimeout) {
+        clearTimeout(messageTimeout);
+    }
+    messageTimeout = setTimeout(() => {
+        currentMessage = null;
+    }, MESSAGE_DURATION);
+}
 
-    ctx.fillStyle = 'red';
-    ctx.fillRect(x, y - healthBarHeight - 2, healthBarWidth, healthBarHeight);
-
-    ctx.fillStyle = 'green';
-    ctx.fillRect(x, y - healthBarHeight - 2, healthBarWidth * healthPercentage, healthBarHeight);
+function drawPlayer(character) {
+    if (character && character.render) {
+        character.render(ctx, character.x, character.y);
+    } else {
+        // Fallback if no render method
+        ctx.fillStyle = 'blue';
+        ctx.fillRect(character.x, character.y, 25, 45);
+    }
 }
 
 function emitMovement() {
-    socket.emit('move', { roomId, x: px, y: py });
-}
-
-function movement() {
-    let ix = px;
-    let iy = py;
-
-    // Horizontal movement
-    if (keyboard[37]) {
-        px -= PLAYER_SPEED;
-        direction = -1;
-    }
-    if (keyboard[39]) {
-        px += PLAYER_SPEED;
-        direction = 1;
-    }
-
-    // Jumping
-    if (keyboard[38] || keyboard[90]) { // Up arrow key
-        if (isOnGround()) {
-            vy = -JUMP_STRENGTH;
-            jumpHoldTime = 0;
-        } else if (jumpHoldTime < MAX_JUMP_HOLD) {
-            vy -= 0.5;
-            jumpHoldTime++;
+    socket.emit('move', { 
+        roomId,
+        x: activeCharacter.x, 
+        y: activeCharacter.y,
+        health: activeCharacter.health,
+        character: {
+            name: activeCharacter.name,
+            headColor: activeCharacter.headColor,
+            torsoColor: activeCharacter.torsoColor,
+            legsColor: activeCharacter.legsColor,
+            eyesColor: activeCharacter.eyesColor
         }
-    } else {
-        jumpHoldTime = MAX_JUMP_HOLD;
-    }
-
-    // Apply gravity
-    vy += GRAVITY;
-    py += vy;
-
-    // Collision detection
-    handleCollisions();
-
-    if (ix == px && iy == py) {
-        moving = false;
-    } else {
-        moving = true;
-    }
-
-    // Check if player is dead
-    if (health <= 0) {
-        resetPlayer();
-    }
+    });
 }
 
 function resetPlayer() {
-    health = MAX_HEALTH;
-    px = 50;
-    py = canvas.height - ph;
-    vy = 0;
+    activeCharacter.health = MAX_HEALTH;
+    activeCharacter.x = 50;
+    activeCharacter.y = canvas.height - activeCharacter.height;
+    activeCharacter.vy = 0;
     emitMovement();
 }
 
@@ -180,12 +167,28 @@ function leaveMatch() {
 }
 
 // Socket event handlers
-socket.on('move', ({ x, y, health, playerId }) => {
-    players[playerId] = { x, y, health };
+socket.on('move', ({ x, y, health, character, playerId }) => {
+    players[playerId] = { 
+        x, 
+        y, 
+        health,
+        character: new Character(
+            character.name,
+            character.headColor,
+            character.torsoColor,
+            character.legsColor,
+            character.eyesColor
+        )
+    };
 });
 
 socket.on('playerJoined', (playerId) => {
-    players[playerId] = { x: 0, y: 0, health: MAX_HEALTH };
+    players[playerId] = { 
+        x: 0, 
+        y: 0, 
+        health: MAX_HEALTH,
+        character: new Character("Player") // Create default character
+    };
     emitMovement();
 });
 
@@ -196,83 +199,40 @@ socket.on('playerLeft', (playerId) => {
 socket.on('currentPlayers', (users) => {
     for (let user of users) {
         if (user.id !== socket.id) {
-            players[user.id] = { x: user.x, y: user.y, health: user.health };
+            players[user.id] = { 
+                x: user.x, 
+                y: user.y, 
+                health: user.health,
+                character: new Character(
+                    user.character.name,
+                    user.character.headColor,
+                    user.character.torsoColor, 
+                    user.character.legsColor,
+                    user.character.eyesColor
+                )
+            };
         }
     }
 });
 
-socket.on('chatMessage', ({ name, message }) => {
+socket.on('chatMessage', ({ name, message, x, y, playerId }) => {
     const messageElement = document.createElement('div');
     messageElement.textContent = `${name}: ${message}`;
     chatMessages.appendChild(messageElement);
     chatMessages.scrollTop = chatMessages.scrollHeight;
+
+    // Show floating message for other players
+    if (playerId && players[playerId]) {
+        players[playerId].message = message;
+        setTimeout(() => {
+            if (players[playerId]) {
+                players[playerId].message = null;
+            }
+        }, MESSAGE_DURATION);
+    }
 });
 
 function toggleChat() {
     chatContainer.classList.toggle('chat-minimized');
     chatToggle.textContent = chatToggle.textContent == 'hide' ? 'show' : 'hide'; 
-}
-
-function handleCollisions() {
-    // Ground collision
-    if (py + ph > canvas.height) {
-        py = canvas.height - ph;
-        vy = 0;
-    }
-
-    if(px + pw > canvas.width) {
-        px = canvas.width - ph;
-        vx = 0;
-    }
-
-    if(px < 0) {
-        px = 0;
-        vx = 0;
-    }
-
-    // Obstacle collisions
-    for (let obstacle of obstacles) {
-        if (px < obstacle.x + obstacle.width &&
-            px + pw > obstacle.x &&
-            py < obstacle.y + obstacle.height &&
-            py + ph > obstacle.y) {
-            
-            // Collision detected, resolve it
-            let overlapLeft = (px + pw) - obstacle.x;
-            let overlapRight = (obstacle.x + obstacle.width) - px;
-            let overlapTop = (py + ph) - obstacle.y;
-            let overlapBottom = (obstacle.y + obstacle.height) - py;
-
-            // Find the smallest overlap
-            let minOverlap = Math.min(overlapLeft, overlapRight, overlapTop, overlapBottom);
-
-            if (minOverlap === overlapLeft) {
-                px = obstacle.x - pw;
-            } else if (minOverlap === overlapRight) {
-                px = obstacle.x + obstacle.width;
-            } else if (minOverlap === overlapTop) {
-                py = obstacle.y - ph;
-                vy = 0;
-            } else if (minOverlap === overlapBottom) {
-                py = obstacle.y + obstacle.height;
-                jumpHoldTime = MAX_JUMP_HOLD;
-                vy = Math.max(0, vy);
-                
-            }
-        }
-    }
-}
-
-function isOnGround() {
-    if (py + ph >= canvas.height) {
-        return true;
-    }
-    for (let obstacle of obstacles) {
-        if (px < obstacle.x + obstacle.width &&
-            px + pw > obstacle.x &&
-            py + ph === obstacle.y) {
-            return true;
-        }
-    }
-    return false;
 }

@@ -64,8 +64,14 @@ io.on('connection', (socket) => {
         }
     });
 
-    socket.on('move', ({roomId, x, y}) => {
-        socket.to(roomId).emit('move', {x, y, playerId: socket.id})
+    socket.on('move', ({roomId, x, y, health, character}) => {
+        socket.to(roomId).emit('move', {
+            x, 
+            y, 
+            playerId: socket.id,
+            health,
+            character
+        });
     });
 
     socket.on('leaveRoom', (roomId) => {
