@@ -12,13 +12,13 @@ const JUMP_STRENGTH = 8;
 const MAX_JUMP_HOLD = 16;
 const MAX_HEALTH = 100;
 const MESSAGE_DURATION = 4000; // 4 seconds in milliseconds
+const MAX_MESSAGE_LENGTH = 50; // Maximum characters in chat message
+const BUBBLE_PADDING = 10; // Padding inside speech bubble
 
 // Game variables
 const keyboard = [];
 const players = {};
 let animationFrame;
-let currentMessage = null;
-let messageTimeout = null;
 
 // Chat elements
 const chatContainer = document.getElementById('chat-container');
@@ -54,10 +54,11 @@ function initialize() {
     chatForm.addEventListener('submit', (e) => {
         e.preventDefault();
         if (chatInput.value.trim() !== '') {
-            const message = chatInput.value.trim();
+            const message = chatInput.value.trim().substring(0, MAX_MESSAGE_LENGTH);
             socket.emit('chatMessage', { roomId, name: activeCharacter.name, message, x: activeCharacter.x, y: activeCharacter.y });
-            showFloatingMessage(message, activeCharacter.x, activeCharacter.y);
+            activeCharacter.showMessage(message);
             chatInput.value = '';
+            chatInput.blur(); // Unfocus the chat input after sending
         }
     });
 
@@ -84,39 +85,56 @@ function draw() {
             player.character.x = player.x;
             player.character.y = player.y;
             drawPlayer(player.character);
-            if (player.message) {
-                drawFloatingMessage(player.message, player.x, player.y);
-            }
         }
     }
 
     // Draw current player
     activeCharacter.move(keyboard, obstacles);
     drawPlayer(activeCharacter);
-    if (currentMessage) {
-        drawFloatingMessage(currentMessage, activeCharacter.x, activeCharacter.y);
-    }
 
     if (activeCharacter.moving) {
         emitMovement();
     }
 }
 
-function drawFloatingMessage(message, x, y) {
+function drawSpeechBubble(message, x, y) {
     ctx.font = '14px Arial';
-    ctx.fillStyle = 'white';
-    ctx.textAlign = 'center';
-    ctx.fillText(message, x + 12, y - 10); // Position above character's head
-}
+    
+    // Measure text
+    const textWidth = ctx.measureText(message).width;
+    const bubbleWidth = textWidth + BUBBLE_PADDING * 2;
+    const bubbleHeight = 30; // Fixed height for speech bubble
+    const bubbleX = x - bubbleWidth/2; // Center bubble horizontally
+    const bubbleY = y - 60; // Position above character
+    const radius = 5; // Border radius for rounded corners
 
-function showFloatingMessage(message, x, y) {
-    currentMessage = message;
-    if (messageTimeout) {
-        clearTimeout(messageTimeout);
-    }
-    messageTimeout = setTimeout(() => {
-        currentMessage = null;
-    }, MESSAGE_DURATION);
+    // Draw bubble background
+    ctx.fillStyle = 'white';
+    ctx.beginPath();
+    ctx.moveTo(bubbleX + radius, bubbleY);
+    ctx.lineTo(bubbleX + bubbleWidth - radius, bubbleY);
+    ctx.quadraticCurveTo(bubbleX + bubbleWidth, bubbleY, bubbleX + bubbleWidth, bubbleY + radius);
+    ctx.lineTo(bubbleX + bubbleWidth, bubbleY + bubbleHeight - radius);
+    ctx.quadraticCurveTo(bubbleX + bubbleWidth, bubbleY + bubbleHeight, bubbleX + bubbleWidth - radius, bubbleY + bubbleHeight);
+    ctx.lineTo(bubbleX + radius, bubbleY + bubbleHeight);
+    ctx.quadraticCurveTo(bubbleX, bubbleY + bubbleHeight, bubbleX, bubbleY + bubbleHeight - radius);
+    ctx.lineTo(bubbleX, bubbleY + radius);
+    ctx.quadraticCurveTo(bubbleX, bubbleY, bubbleX + radius, bubbleY);
+    ctx.closePath();
+    ctx.fill();
+
+    // Draw pointer centered
+    ctx.beginPath();
+    ctx.moveTo(x - 10, bubbleY + bubbleHeight);
+    ctx.lineTo(x, bubbleY + bubbleHeight + 10);
+    ctx.lineTo(x + 10, bubbleY + bubbleHeight);
+    ctx.closePath();
+    ctx.fill();
+
+    // Draw text
+    ctx.fillStyle = 'black';
+    ctx.textAlign = 'center';
+    ctx.fillText(message, x, bubbleY + bubbleHeight/2 + 5);
 }
 
 function drawPlayer(character) {
@@ -135,6 +153,7 @@ function emitMovement() {
         x: activeCharacter.x, 
         y: activeCharacter.y,
         health: activeCharacter.health,
+        message: activeCharacter.message,
         character: {
             name: activeCharacter.name,
             headColor: activeCharacter.headColor,
@@ -150,6 +169,7 @@ function resetPlayer() {
     activeCharacter.x = 50;
     activeCharacter.y = canvas.height - activeCharacter.height;
     activeCharacter.vy = 0;
+    activeCharacter.message = null;
     emitMovement();
 }
 
@@ -167,11 +187,38 @@ function leaveMatch() {
 }
 
 // Socket event handlers
-socket.on('move', ({ x, y, health, character, playerId }) => {
+socket.on('move', ({ x, y, health, message, character, playerId }) => {
+    if (!players[playerId]) {
+        // Only create character if player doesn't exist yet
+        players[playerId] = {
+            x,
+            y,
+            health,
+            character: new Character(
+                character.name,
+                character.headColor,
+                character.torsoColor,
+                character.legsColor,
+                character.eyesColor
+            )
+        };
+    } else {
+        // Just update position and health for existing player
+        players[playerId].x = x;
+        players[playerId].y = y;
+        players[playerId].health = health;
+    }
+    
+    if (message) {
+        players[playerId].character.showMessage(message);
+    }
+});
+
+socket.on('playerJoined', ({ playerId, character }) => {
     players[playerId] = { 
-        x, 
-        y, 
-        health,
+        x: 0, 
+        y: 0, 
+        health: MAX_HEALTH,
         character: new Character(
             character.name,
             character.headColor,
@@ -179,15 +226,6 @@ socket.on('move', ({ x, y, health, character, playerId }) => {
             character.legsColor,
             character.eyesColor
         )
-    };
-});
-
-socket.on('playerJoined', (playerId) => {
-    players[playerId] = { 
-        x: 0, 
-        y: 0, 
-        health: MAX_HEALTH,
-        character: new Character("Player") // Create default character
     };
     emitMovement();
 });
@@ -199,17 +237,21 @@ socket.on('playerLeft', (playerId) => {
 socket.on('currentPlayers', (users) => {
     for (let user of users) {
         if (user.id !== socket.id) {
+            const character = new Character(
+                user.character.name,
+                user.character.headColor,
+                user.character.torsoColor, 
+                user.character.legsColor,
+                user.character.eyesColor
+            );
+            if (user.message) {
+                character.showMessage(user.message);
+            }
             players[user.id] = { 
                 x: user.x, 
                 y: user.y, 
                 health: user.health,
-                character: new Character(
-                    user.character.name,
-                    user.character.headColor,
-                    user.character.torsoColor, 
-                    user.character.legsColor,
-                    user.character.eyesColor
-                )
+                character
             };
         }
     }
@@ -223,12 +265,7 @@ socket.on('chatMessage', ({ name, message, x, y, playerId }) => {
 
     // Show floating message for other players
     if (playerId && players[playerId]) {
-        players[playerId].message = message;
-        setTimeout(() => {
-            if (players[playerId]) {
-                players[playerId].message = null;
-            }
-        }, MESSAGE_DURATION);
+        players[playerId].character.showMessage(message);
     }
 });
 

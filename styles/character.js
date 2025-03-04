@@ -15,6 +15,10 @@ class Character {
         this.moving = false;
         this.width = 25;
         this.height = 45;
+
+        // Message properties
+        this.message = null;
+        this.messageTimeout = null;
     }
 
     move(keyboard, obstacles) {
@@ -106,10 +110,25 @@ class Character {
         return false;
     }
 
+    showMessage(message) {
+        this.message = message;
+        if (this.messageTimeout) {
+            clearTimeout(this.messageTimeout);
+        }
+        this.messageTimeout = setTimeout(() => {
+            this.message = null;
+        }, MESSAGE_DURATION);
+    }
+
     render(ctx, x, y) {
         // Save context state
         ctx.save();
-        
+
+        // Draw message if exists
+        if (this.message) {
+            drawSpeechBubble(this.message, x + this.width/2, y);
+        }
+
         // Flip character if facing left
         if (this.direction === -1) {
             ctx.scale(-1, 1);
