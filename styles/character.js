@@ -21,17 +21,20 @@ class Character {
         this.messageTimeout = null;
     }
 
-    move(keyboard, obstacles) {
+    move(keyboard, obstacles, deltaTime) {
         let initialX = this.x;
         let initialY = this.y;
 
+        // Calculate time factor for frame-rate independent movement
+        const timeFactor = deltaTime / (1000 / 60); // Normalize to 60 FPS
+
         // Horizontal movement
         if (keyboard[37]) { // Left arrow
-            this.x -= PLAYER_SPEED;
+            this.x -= PLAYER_SPEED * timeFactor;
             this.direction = -1;
         }
         if (keyboard[39]) { // Right arrow
-            this.x += PLAYER_SPEED; 
+            this.x += PLAYER_SPEED * timeFactor;
             this.direction = 1;
         }
 
@@ -41,7 +44,7 @@ class Character {
                 this.vy = -JUMP_STRENGTH;
                 this.jumpHoldTime = 0;
             } else if (this.jumpHoldTime < MAX_JUMP_HOLD) {
-                this.vy -= 0.5;
+                this.vy -= 0.5 * timeFactor;
                 this.jumpHoldTime++;
             }
         } else {
@@ -49,8 +52,8 @@ class Character {
         }
 
         // Apply gravity
-        this.vy += GRAVITY;
-        this.y += this.vy;
+        this.vy += GRAVITY * timeFactor;
+        this.y += this.vy * timeFactor;
 
         // Handle collisions
         this.handleCollisions(obstacles);

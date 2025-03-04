@@ -6,10 +6,10 @@ canvas.width = 1600;
 canvas.height = 900;
 
 // Game constants
-const PLAYER_SPEED = 5;
+const PLAYER_SPEED = 6;
 const GRAVITY = 0.5;
 const JUMP_STRENGTH = 8;
-const MAX_JUMP_HOLD = 16;
+const MAX_JUMP_HOLD = 20;
 const MAX_HEALTH = 100;
 const MESSAGE_DURATION = 4000; // 4 seconds in milliseconds
 const MAX_MESSAGE_LENGTH = 50; // Maximum characters in chat message
@@ -67,9 +67,18 @@ function initialize() {
     animationFrame = requestAnimationFrame(draw);
 }
 
-function draw() {
-    animationFrame = requestAnimationFrame(draw);
+var lastTimestamp;
 
+function draw(timestamp) {
+    let deltaTime;
+    if (lastTimestamp) {
+        deltaTime = timestamp - lastTimestamp;
+    } else {
+        deltaTime = 0;
+    }
+    lastTimestamp = timestamp;
+
+    animationFrame = requestAnimationFrame(draw);
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     // Draw obstacles
@@ -89,7 +98,7 @@ function draw() {
     }
 
     // Draw current player
-    activeCharacter.move(keyboard, obstacles);
+    activeCharacter.move(keyboard, obstacles, deltaTime);
     drawPlayer(activeCharacter);
 
     if (activeCharacter.moving) {
