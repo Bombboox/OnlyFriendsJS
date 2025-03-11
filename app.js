@@ -89,8 +89,45 @@ io.on('connection', (socket) => {
         }
     });
 
-    socket.on('chatMessage', ({ roomId, name, message }) => {
-        io.to(roomId).emit('chatMessage', { name: name, playerId: socket.id, message });
+    socket.on('chatMessage', ({ roomId, name, message, x, y }) => {
+        io.to(roomId).emit('chatMessage', { name: name, playerId: socket.id, message, x, y });
+    });
+
+    // Voice chat handlers
+    socket.on('voiceChatStart', ({ roomId }) => {
+        socket.to(roomId).emit('voiceChatStart', { playerId: socket.id });
+    });
+
+    socket.on('voiceChatEnd', ({ roomId }) => {
+        socket.to(roomId).emit('voiceChatEnd', { playerId: socket.id });
+    });
+
+    socket.on('voiceOffer', ({ roomId, targetId, offer }) => {
+        if (targetId) {
+            socket.to(targetId).emit('voiceOffer', { 
+                playerId: socket.id, 
+                offer 
+            });
+        } else {
+            socket.to(roomId).emit('voiceOffer', { 
+                playerId: socket.id, 
+                offer 
+            });
+        }
+    });
+
+    socket.on('voiceAnswer', ({ roomId, targetId, answer }) => {
+        socket.to(targetId).emit('voiceAnswer', { 
+            playerId: socket.id, 
+            answer 
+        });
+    });
+
+    socket.on('voiceIceCandidate', ({ roomId, targetId, candidate }) => {
+        socket.to(targetId).emit('voiceIceCandidate', {
+            playerId: socket.id,
+            candidate
+        });
     });
 });
 
